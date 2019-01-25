@@ -67,7 +67,10 @@ python dataset_to_gcs.py \
   --raw_data_dir=$LOCAL_RAWDATA_DIR
 ```
 
-The following 3 .sh scripts in `tpu/` can be used to train and evaluate models on iNaturalist and ImageNet using Cloud TPU. For more details on how to use Cloud TPU, please refer to [Training ResNet on Cloud TPU](https://cloud.google.com/tpu/docs/tutorials/resnet):
+The following 3 .sh scripts in `tpu/` can be used to train and evaluate models on iNaturalist and ImageNet using Cloud TPU. For more details on how to use Cloud TPU, please refer to [Training ResNet on Cloud TPU](https://cloud.google.com/tpu/docs/tutorials/resnet).
+
+Note that the [image mean and standard deviation](https://github.com/richardaecn/class-balanced-loss/blob/master/tpu/models/official/resnet/resnet_main.py#L232-L238) and [input size](https://github.com/richardaecn/class-balanced-loss/blob/master/tpu/models/official/resnet/resnet_preprocessing.py#L22-L27) need to be updated accordingly.
+
 + On ImageNet (ILSVRC 2012):
 ```
 ./run_ILSVRC2012.sh
