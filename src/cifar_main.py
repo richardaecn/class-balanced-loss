@@ -88,7 +88,6 @@ def get_model_fn(num_gpus, variable_strategy, num_workers):
     reg_losses = []
     tower_gradvars = []
     tower_preds = []
-
     # channels first (NCHW) is normally optimal on GPU and channels last (NHWC)
     # on CPU. The exception is Intel MKL on CPU which is optimal with
     # channels_last.
@@ -113,7 +112,7 @@ def get_model_fn(num_gpus, variable_strategy, num_workers):
       with tf.variable_scope('resnet', reuse=bool(i != 0)):
         with tf.name_scope('tower_%d' % i) as name_scope:
           with tf.device(device_setter):
-            loss_list, gradvars, preds = _tower_fn(
+            loss_list, gradvars, preds, one_hot_labels = _tower_fn(
                 is_training, weight_decay, tower_features[i], tower_labels[i],
                 data_version, data_format, params.num_layers,
                 params.batch_norm_decay, params.batch_norm_epsilon,
@@ -209,6 +208,10 @@ def get_model_fn(num_gpus, variable_strategy, num_workers):
       tf.summary.scalar('regularization_loss', reg_loss)
       tf.summary.scalar('network_loss', loss - reg_loss)
       tf.summary.scalar('epoch', current_epoch)
+
+      one_hot_sum = tf.reduce_sum(one_hot_labels, 0)
+      for n in range(int(data_version)):
+        tf.summary.scalar('labels/' + str(n), one_hot_sum[n])
     else:
       metrics = {}
 
@@ -353,7 +356,7 @@ def _tower_fn(is_training, weight_decay, feature, label, data_version,
   tower_loss += reg_loss
   tower_grad = tf.gradients(tower_loss, model_params)
 
-  return [tower_loss, reg_loss], zip(tower_grad, model_params), tower_pred
+  return [tower_loss, reg_loss], zip(tower_grad, model_params), tower_pred, one_hot_labels
 
 
 def input_fn(data_dir,
@@ -361,7 +364,9 @@ def input_fn(data_dir,
              imbalance_factor,
              num_shards,
              batch_size,
-             use_distortion_for_training=True):
+             use_distortion_for_training=True,
+             resample=False,
+             target_dist=None):
   """Create input graph for model.
 
   Args:
@@ -372,15 +377,26 @@ def input_fn(data_dir,
     batch_size: total batch size for training to be divided by the number of
     shards.
     use_distortion_for_training: True to use distortions.
+    resample: True to use resampling during training.
+    target_dist: None is is_resample is false, else is an array of length num_cls.
   Returns:
     two lists of tensors for features and labels, each of num_shards length.
   """
+  if resample and target_dist is None:
+    raise ValueError(
+        'Target distribution should not be None if using resampling')
+
   with tf.device('/cpu:0'):
     use_distortion = subset == 'train' and use_distortion_for_training
     dataset = cifar.CifarDataSet(
         data_dir, dir2version(data_dir),
-        subset, imbalance_factor, use_distortion)
-    image_batch, label_batch = dataset.make_batch(batch_size)
+        subset, imbalance_factor, use_distortion, resample)
+
+    if resample:
+      image_batch, label_batch = dataset.make_resampled_batch(batch_size, target_dist)
+    else:
+      image_batch, label_batch = dataset.make_batch(batch_size)
+
     if num_shards <= 1:
       # No GPU available or only 1 GPU.
       return [image_batch], [label_batch]
@@ -434,6 +450,10 @@ def main(job_dir, data_dir, num_gpus, variable_strategy,
       weights=weights,
       **hparams)
 
+  if hparams.is_resample:
+    target_dist = weights / int(hparams.data_version)
+  else:
+    target_dist = None
   train_input_fn = functools.partial(
       input_fn,
       data_dir,
@@ -441,7 +461,11 @@ def main(job_dir, data_dir, num_gpus, variable_strategy,
       imbalance_factor=hparams.imb_factor,
       num_shards=num_gpus,
       batch_size=hparams.train_batch_size,
-      use_distortion_for_training=use_distortion_for_training)
+      use_distortion_for_training=use_distortion_for_training,
+      resample=hparams.is_resample,
+      # target_dist=[0.1] * 10,
+      target_dist=target_dist,
+  )
 
   eval_input_fn = functools.partial(
       input_fn,
@@ -476,6 +500,7 @@ def main(job_dir, data_dir, num_gpus, variable_strategy,
         os.path.basename(ckpt.model_checkpoint_path).split('-')[1])
 
   steps_per_eval = num_train_examples * hparams.eval_epochs // train_batch_size
+  steps_per_epoch = num_train_examples // train_batch_size
   tf.logging.info('Training for %d steps. Current step %d.',
                   train_steps,
                   current_step)
@@ -488,6 +513,13 @@ def main(job_dir, data_dir, num_gpus, variable_strategy,
     classifier.train(
         input_fn=train_input_fn, max_steps=next_checkpoint)
     current_step = next_checkpoint
+    # while current_step < next_checkpoint:
+    #   # train for one epoch
+    #   # resample first
+    #   _next_checkpoint = min(current_step + steps_per_epoch, next_checkpoint)
+    #   classifier.train(
+    #       input_fn=train_input_fn, max_steps=_next_checkpoint)
+    #   current_step = _next_checkpoint
 
     tf.logging.info('Finished training up to step %d. Elapsed seconds %d.',
                     next_checkpoint, int(time.time() - start_timestamp))
@@ -675,6 +707,11 @@ if __name__ == '__main__':
       type=float,
       default=0.0,
       help='Beta for class balanced loss.')
+  parser.add_argument(
+      '--is-resample',
+      action='store_true',
+      default=False,
+      help='Whether to resample during training.')
 
   args = parser.parse_args()
 

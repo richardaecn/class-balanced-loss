@@ -17,6 +17,7 @@ import os
 from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
 import random
+import pickle
 
 from data_utils import *
 
@@ -117,7 +118,48 @@ def convert_to_tfrecord(input_dir, output_file, data_version, im_sorted_data):
                 record_writer.write(example.SerializeToString())
 
 
-def main(imb_factor):
+def convert_to_pickle(input_dir, output_file, data_version, im_sorted_data):
+    images = []
+    labels_list = []
+    for folder_name, img_list in im_sorted_data.items():
+        # Convert to tf.train.Example and write the to TFRecords.
+        print('converting data from {}'.format(folder_name))
+
+        input_path = os.path.join(input_dir, folder_name)
+        data_dict = read_pickle_from_file(input_path)
+        data = data_dict[b'data']
+        labels = data_dict[label_names(data_version)]
+
+        for img_id in img_list:
+            image, label = parse_raw(data[img_id], labels[img_id])
+            images.append(image)
+            labels_list.append(label)
+        print(len(images))
+        print(len(labels_list))
+    images = tf.stack(images, 0)
+    print(len(labels_list))
+    labels_list = tf.stack(labels_list, 0)
+    # save it
+    sess = tf.Session()
+    with sess.as_default():
+        with open(output_file, 'wb') as f:
+            pickle.dump([images.eval(), labels_list.eval()], f)
+
+
+def parse_raw(image, label):
+    # Reshape from [depth * height * width] to [depth, height, width].
+    HEIGHT = 32
+    WIDTH = 32
+    DEPTH = 3
+    image = tf.cast(
+        tf.transpose(tf.reshape(image, [DEPTH, HEIGHT, WIDTH]), [1, 2, 0]),
+        tf.float32)
+    label = tf.cast(label, tf.int32)
+
+    return image, label
+
+
+def main(imb_factor, args):
     data_ver = args.CIFAR_data_version
 
     print('=' * 80)
@@ -129,12 +171,17 @@ def main(imb_factor):
         print('cifar-100, imbalance factor = ' + str(1.0 / imb_factor) + '%')
     print('=' * 80)
 
-    ori_data_dir = 'data/cifar-' + data_ver + '-data'
-    im_data_dir = 'data/cifar-' + data_ver + '-data-im-' + str(imb_factor)
+    if args.resample:
+        ori_data_dir = '/media/user/2tb/2018FocalLoss/data/cifar-' + data_ver + '-data'
+        im_data_dir = '/media/user/2tb/2018FocalLoss/data/cifar-' + data_ver + '-data-im-' + str(imb_factor)
+        im_data = read_json(os.path.join(im_data_dir, "train_img_id.json"))
+    else:
+        ori_data_dir = './data/cifar-' + data_ver + '-data'
+        im_data_dir = './data/cifar-' + data_ver + '-data-im-' + str(imb_factor)
 
-    orig_data = get_traindata_list(ori_data_dir, data_ver)
-    img_num_list = get_img_num_per_cls(data_ver, imb_factor)
-    im_data = get_imbalanced_data(orig_data, img_num_list)
+        orig_data = get_traindata_list(ori_data_dir, data_ver)
+        img_num_list = get_img_num_per_cls(data_ver, imb_factor)
+        im_data = get_imbalanced_data(orig_data, img_num_list)
 
     # write_json(orig_data, os.path.join(ori_data_dir, 'train_img_id.json'))
     # write_json(im_data, os.path.join(im_data_dir, 'train_img_id.json'))
@@ -142,14 +189,21 @@ def main(imb_factor):
     im_sorted_data = sort_input(im_data, data_ver)
 
     input_dir = os.path.join(ori_data_dir, local_folder(data_ver))
-    output_file = os.path.join(im_data_dir, 'train.tfrecords')
+    if args.resample:
+        output_file = os.path.join(im_data_dir, 'train.pickle')
+    else:
+        output_file = os.path.join(im_data_dir, 'train.tfrecords')
     print('writing data to ' + output_file)
 
     try:
         os.remove(output_file)
     except OSError:
         pass
-    convert_to_tfrecord(input_dir, output_file, data_ver, im_sorted_data)
+
+    if args.resample:
+        convert_to_pickle(input_dir, output_file, data_ver, im_sorted_data)
+    else:
+        convert_to_tfrecord(input_dir, output_file, data_ver, im_sorted_data)
 
     print('Done!')
 
@@ -161,8 +215,15 @@ if __name__ == '__main__':
         type=str,
         default='10',
         help='CIFAR data version, 10, 20, or 100')
+    parser.add_argument(
+        '--resample',
+        action='store_true',
+        default=False,
+        help='Whether to do resample.')
+    args = parser.parse_args()
 
-    imb_factor_list = [0.005, 0.01, 0.02, 0.05, 0.1]
+    # imb_factor_list = [0.005, 0.01, 0.02, 0.05, 0.1]
+    imb_factor_list = [0.02]
 
     for imb_factor in imb_factor_list:
-        main(root, data_version, imb_factor)
+        main(imb_factor, args)
