@@ -3,12 +3,12 @@
 Tensorflow code for the paper:
 
 [*Class-Balanced Loss Based on Effective Number of Samples*](https://arxiv.org/abs/1901.05555)\
-[Yin Cui](http://www.cs.cornell.edu/~ycui/), Menglin Jia, [Tsung-Yi Lin](https://vision.cornell.edu/se3/people/tsung-yi-lin/), [Yang Song](https://ai.google/research/people/author38270), [Serge Belongie](http://blogs.cornell.edu/techfaculty/serge-belongie/)
+[Yin Cui](https://ycui.me/), Menglin Jia, [Tsung-Yi Lin](https://vision.cornell.edu/se3/people/tsung-yi-lin/), [Yang Song](https://ai.google/research/people/author38270), [Serge Belongie](http://blogs.cornell.edu/techfaculty/serge-belongie/)
 
 
 ## Dependencies:
-+ Python (3.5)
-+ Tensorflow (1.12)
++ Python (3.6)
++ Tensorflow (1.14)
 
 
 ## Datasets:
