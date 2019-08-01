@@ -1,6 +1,6 @@
 #!/bin/sh
 
-alias python='CUDA_VISIBLE_DEVICES=2 python3'
+alias python='CUDA_VISIBLE_DEVICES=1 python3'
 
 CIFAR_VERSION=10
 IM_FACTOR=0.02

@@ -47,6 +47,11 @@ We provide 3 .sh scripts for training and evaluation.
 tensorboard --logdir=./results --port=6006
 ```
 
++ The figure below are the results of running ```./cifar_im_trainval.sh``` and ```./cifar_im_trainval_cb.sh```:
+<p float="left">
+    <img src="assets/results.png" height="512"/>
+</p>
+
 
 ## Training with TPU:
 We train networks on iNaturalist and ImageNet datasets using [Google's Cloud TPU](https://cloud.google.com/tpu/). The code for this section is in `tpu/`. Our code is based on the official implementation of [Training ResNet on Cloud TPU](https://cloud.google.com/tpu/docs/tutorials/resnet) and forked from https://github.com/tensorflow/tpu.
@@ -90,3 +95,15 @@ Note that the [image mean and standard deviation](https://github.com/richardaecn
 |------------------|-----------|---------------------------|------------|---------------|
 | ILSVRC 2012      | ResNet-50 | Class-Balanced Focal Loss | 224        | [link](https://drive.google.com/file/d/1SmLv1-D1143Cma4Y5bDxHUfXjOI_0Yvr/) |
 | iNaturalist 2018 | ResNet-50 | Class-Balanced Focal Loss | 224        | [link](https://drive.google.com/file/d/1aNyYCfAUXP4up_hvOhAKQkBevc2e8lr8/) |
+
+
+## Citation
+If you find our work helpful in your research, please cite it as:
+```latex
+@inproceedings{cui2019classbalancedloss,
+  title={Class-Balanced Loss Based on Effective Number of Samples},
+  author={Cui, Yin and Jia, Menglin and Lin, Tsung-Yi and Song, Yang and Belongie, Serge},
+  booktitle={CVPR},
+  year={2019}
+}
+```
