@@ -65,7 +65,7 @@ class InputFunction(object):
 
     batch_size = params['batch_size']
     dataset = tf.data.TFRecordDataset(self.data_file)
-    dataset = dataset.map(parser).cache()
+    dataset = dataset.map(parser,num_parallel_calls=tf.data.experimental.AUTOTUNE).cache()
     if self.is_training:
       dataset = dataset.repeat()
     dataset = dataset.shuffle(1024)
