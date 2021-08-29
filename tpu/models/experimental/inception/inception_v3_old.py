@@ -253,7 +253,7 @@ def input_fn(params):
         for i in range(0, 984)
     ]
     dataset = tf.data.TFRecordDataset(filenames)
-    dataset = dataset.repeat().map(parser).batch(batch_size)
+    dataset = dataset.repeat().map(parser,num_parallel_calls=tf.data.experimental.AUTOTUNE).batch(batch_size)
     images, labels = dataset.make_one_shot_iterator().get_next()
   else:
     images = tf.random_uniform(
