@@ -376,7 +376,7 @@ class InputReader(object):
       labels['image_scales'] = image_scales
       return images, labels
 
-    dataset = dataset.map(_process_example)
+    dataset = dataset.map(_process_example,num_parallel_calls=tf.data.experimental.AUTOTUNE)
     dataset = dataset.prefetch(tf.contrib.data.AUTOTUNE)
     return dataset
 
